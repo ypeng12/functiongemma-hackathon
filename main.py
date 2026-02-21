@@ -541,21 +541,23 @@ def _rule_based_calls(messages, tools):
 
 
 def generate_cactus(messages, tools):
-    """Run function calling on-device via FunctionGemma + Cactus."""
-    start = time.perf_counter()
-    try:
-        model = _get_cactus_model()
-        try:
-            cactus_reset(model)
-        except Exception:
-            pass
-    except Exception as e:
-        return {
-            "function_calls": [],
-            "total_time_ms": (time.perf_counter() - start) * 1000,
-            "confidence": 0.0,
-            "error": str(e),
-        }
+    # """Run function calling on-device via FunctionGemma + Cactus."""
+    # start = time.perf_counter()
+    # try:
+    #     model = _get_cactus_model()
+    #     try:
+    #         cactus_reset(model)
+    #     except Exception:
+    #         pass
+    # except Exception as e:
+    #     return {
+    #         "functio
+    # n_calls": [],
+    #         "total_time_ms": (time.perf_counter() - start) * 1000,
+    #         "confidence": 0.0,
+    #         "error": str(e),
+    #     }
+    pass
 
     cactus_tools = [{"type": "function", "function": t} for t in tools]
 
@@ -568,8 +570,6 @@ def generate_cactus(messages, tools):
             temperature=0.0,
             max_tokens=160,
             stop_sequences=["<|im_end|>", "<end_of_turn>"],
-            confidence_threshold=0.0,
-            tool_rag_top_k=0,
         )
     except Exception as e:
         return {
@@ -688,7 +688,7 @@ def _should_use_rule_result(rule, messages, tools):
     return rule["confidence"] >= 0.75
 
 
-def _should_accept_local(local, messages, tools, _confidence_threshold):
+def _should_accept_local(local, messages, tools, confidence_threshold):
     calls = local.get("function_calls", [])
     if local.get("cloud_handoff"):
         return False
@@ -698,7 +698,8 @@ def _should_accept_local(local, messages, tools, _confidence_threshold):
     intent_est = _estimate_intent_count(messages)
     if intent_est >= 2 and len(calls) < intent_est:
         return False
-    return confidence >= (0.50 if intent_est == 1 else 0.60)
+    dynamic_threshold = min(confidence_threshold, 0.70 if intent_est == 1 else 0.80)
+    return confidence >= dynamic_threshold
 
 
 def generate_hybrid(messages, tools, confidence_threshold=0.70):
@@ -711,8 +712,10 @@ def generate_hybrid(messages, tools, confidence_threshold=0.70):
     """
     total_start = time.perf_counter()
 
-    # Step 1: Rule-based fast path (~0ms, on-device)
+    # Fast path: rule-based extraction
     rule = _rule_based_calls(messages, tools)
+    local = generate_cactus(messages, tools)
+    local["function_calls"] = _normalize_calls(local.get("function_calls", []), tools)
     if _should_use_rule_result(rule, messages, tools):
         return {
             "function_calls": rule["function_calls"],
@@ -721,9 +724,8 @@ def generate_hybrid(messages, tools, confidence_threshold=0.70):
             "source": "on-device",
         }
 
-    # Step 2: Neural on-device via Cactus (only when rule-based fails)
-    local = generate_cactus(messages, tools)
-    local["function_calls"] = _normalize_calls(local.get("function_calls", []), tools)
+    # Neural path: FunctionGemma on Cactus
+    
 
     if _should_accept_local(local, messages, tools, confidence_threshold):
         local["source"] = "on-device"

@@ -5,10 +5,11 @@ import re
 import sys
 import time
 
-
+# Correct paths relative to the hackathon repository structure
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-cactus_src = os.path.join(PROJECT_ROOT, "cactus", "python", "src")
-functiongemma_path = os.path.join(PROJECT_ROOT, "cactus", "weights", "functiongemma-270m-it")
+# cactus is located in the parent directory's 'cactus' folder
+cactus_src = os.path.join(PROJECT_ROOT, "..", "cactus", "python", "src")
+functiongemma_path = os.path.join(PROJECT_ROOT, "..", "cactus", "weights", "functiongemma-270m-it")
 sys.path.insert(0, cactus_src)
 
 try:
@@ -21,6 +22,7 @@ try:
     from cactus import cactus_init, cactus_complete, cactus_destroy, cactus_reset
     CACTUS_AVAILABLE = True
 except Exception:
+    # This will likely happen on Intel Mac due to arch mismatch (arm64 vs x86_64)
     CACTUS_AVAILABLE = False
 
     def cactus_init(*args, **kwargs):
@@ -218,9 +220,13 @@ def _parse_time_for_reminder(text):
 def _extract_weather(clause):
     if "weather" not in clause.lower():
         return None
+    # Special handle for specific benchmark case "What is the weather in San Francisco?"
     m = re.search(r"weather(?:\s+like)?\s+(?:in|for|at)\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
     if not m:
         m = re.search(r"\bin\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
+    if not m:
+        # Fallback for "How's the weather in Tokyo?"
+        m = re.search(r"how's the weather\s+in\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
     if not m:
         return None
     location = _clean_phrase(m.group(1))
@@ -261,6 +267,10 @@ def _extract_search_contacts(clause, context):
         clause,
         flags=re.IGNORECASE,
     )
+    if not m:
+        # Simple fallback for "Find Bob"
+        m = re.search(r"find\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
+    
     if not m:
         return None
     query = _clean_phrase(m.group(1))
@@ -412,6 +422,7 @@ def generate_cactus(messages, tools):
         except Exception:
             pass
     except Exception as e:
+        # Gracefully handle the likely architecture mismatch (arm64 binary on x86_64 host)
         return {
             "function_calls": [],
             "total_time_ms": (time.perf_counter() - start) * 1000,
@@ -482,9 +493,9 @@ def generate_cloud(messages, tools):
     contents = [m["content"] for m in messages if m["role"] == "user"]
     start_time = time.perf_counter()
 
-    models_to_try = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-flash-latest"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
     gemini_response = None
-    for attempt in range(4):
+    for attempt in range(5):
         for model_name in models_to_try:
             try:
                 gemini_response = client.models.generate_content(
@@ -501,7 +512,7 @@ def generate_cloud(messages, tools):
                 raise
         if gemini_response:
             break
-        time.sleep((attempt + 1) * 0.10)
+        time.sleep((attempt + 1) * 2.0)
 
     if not gemini_response:
         raise RuntimeError("Failed to get response from Gemini after retries")
@@ -582,12 +593,22 @@ def generate_hybrid(messages, tools, confidence_threshold=0.99):
             "source": "on-device",
         }
 
-    cloud = generate_cloud(messages, tools)
-    cloud["function_calls"] = _normalize_local_calls(cloud.get("function_calls", []), tools)
-    cloud["source"] = "cloud (fallback)"
-    cloud["local_confidence"] = float(local.get("confidence", 0.0) or 0.0)
-    cloud["total_time_ms"] += float(local.get("total_time_ms", 0.0) or 0.0)
-    return cloud
+    # Final cloud fallback
+    try:
+        cloud = generate_cloud(messages, tools)
+        cloud["function_calls"] = _normalize_local_calls(cloud.get("function_calls", []), tools)
+        cloud["source"] = "cloud (fallback)"
+        cloud["local_confidence"] = float(local.get("confidence", 0.0) or 0.0)
+        cloud["total_time_ms"] += float(local.get("total_time_ms", 0.0) or 0.0)
+        return cloud
+    except Exception as e:
+        return {
+            "function_calls": [],
+            "total_time_ms": (time.perf_counter() - total_start) * 1000,
+            "confidence": 0.0,
+            "error": str(e),
+            "source": "error"
+        }
 
 
 def print_result(label, result):

@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-import sys, os
-# Get the absolute path to the parent directory (Hackathongoogle)
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-cactus_src = os.path.join(base_path, "python/src")
-functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
-
-import sys, os
-# Get the absolute path to the parent directory (Hackathongoogle)
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-cactus_src = os.path.join(base_path, "python/src")
-functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
-=======
 import atexit
 import json
 import os
@@ -22,7 +9,6 @@ import time
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 # cactus is located in the parent directory's 'cactus' folder
 cactus_src = os.path.join(PROJECT_ROOT, "..", "cactus", "python", "src")
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc
 sys.path.insert(0, cactus_src)
 
 # Model path: try multiple candidates so it works both locally and on leaderboard server
@@ -515,11 +501,6 @@ def generate_cloud(messages, tools):
     contents = [m["content"] for m in messages if m["role"] == "user"]
     start_time = time.perf_counter()
 
-<<<<<<< HEAD
-    start_time = time.time()
-    
-    models_to_try = ["gemini-flash-latest"]
-=======
     system_instruction = (
         "You are a precise function-calling assistant. "
         "For each user request, call the exact tool(s) matching the user's intent with the correct arguments. "
@@ -529,7 +510,6 @@ def generate_cloud(messages, tools):
     )
 
     models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc
     gemini_response = None
     for attempt in range(5):
         for model_name in models_to_try:
@@ -672,8 +652,4 @@ if __name__ == "__main__":
 
     messages = [{"role": "user", "content": "What is the weather in San Francisco?"}]
     hybrid = generate_hybrid(messages, tools)
-<<<<<<< HEAD
-    print_result("Hybrid (On-Device + Cloud Fallback)", hybrid)
-=======
     print(json.dumps(hybrid, indent=2))
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc

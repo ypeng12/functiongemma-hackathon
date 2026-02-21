@@ -1,10 +1,14 @@
+import sys, os
+# Get the absolute path to the parent directory (Hackathongoogle)
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+cactus_src = os.path.join(base_path, "python/src")
+functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
 
 import sys, os
 # Get the absolute path to the parent directory (Hackathongoogle)
 base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-cactus_src = os.path.join(base_path, "cactus/python/src")
-functiongemma_path = os.path.join(base_path, "cactus/weights/functiongemma-270m-it")
-
+cactus_src = os.path.join(base_path, "python/src")
+functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
 sys.path.insert(0, cactus_src)
 
 import json, os, time
@@ -96,7 +100,7 @@ def generate_cloud(messages, tools):
 
     start_time = time.time()
     
-    models_to_try = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-flash-latest"]
+    models_to_try = ["gemini-flash-latest"]
     gemini_response = None
     
     for attempt in range(5): # Up to 5 retries

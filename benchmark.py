@@ -1,6 +1,10 @@
 
 import sys, os
-sys.path.insert(0, "cactus/python/src")
+# Get the absolute path to the parent directory (Hackathongoogle)
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+cactus_src = os.path.join(base_path, "cactus/python/src")
+
+sys.path.insert(0, cactus_src)
 os.environ["CACTUS_NO_CLOUD_TELE"] = "1"
 
 import json
@@ -404,19 +408,31 @@ def run_benchmark(benchmarks=None):
     results = []
     for i, case in enumerate(benchmarks, 1):
         print(f"[{i}/{total}] Running: {case['name']} ({case['difficulty']})...", end=" ", flush=True)
-        result = generate_hybrid(case["messages"], case["tools"])
-        f1 = compute_f1(result["function_calls"], case["expected_calls"])
-        source = result.get("source", "unknown")
-        print(f"F1={f1:.2f} | {result['total_time_ms']:.0f}ms | {source}")
-        results.append({
-            "name": case["name"],
-            "difficulty": case["difficulty"],
-            "total_time_ms": result["total_time_ms"],
-            "f1": f1,
-            "source": source,
-            "predicted": result["function_calls"],
-            "expected": case["expected_calls"],
-        })
+        try:
+            result = generate_hybrid(case["messages"], case["tools"])
+            f1 = compute_f1(result["function_calls"], case["expected_calls"])
+            source = result.get("source", "unknown")
+            print(f"F1={f1:.2f} | {result['total_time_ms']:.0f}ms | {source}")
+            results.append({
+                "name": case["name"],
+                "difficulty": case["difficulty"],
+                "total_time_ms": result["total_time_ms"],
+                "f1": f1,
+                "source": source,
+                "predicted": result["function_calls"],
+                "expected": case["expected_calls"],
+            })
+        except Exception as e:
+            print(f"FAILED | Error: {str(e)}")
+            results.append({
+                "name": case["name"],
+                "difficulty": case["difficulty"],
+                "total_time_ms": 0,
+                "f1": 0.0,
+                "source": "error",
+                "predicted": [],
+                "expected": case["expected_calls"],
+            })
 
     print("\n=== Benchmark Results ===\n")
     print(f"  {'#':>2} | {'Difficulty':<10} | {'Name':<28} | {'Time (ms)':>10} | {'F1':>5} | Source")

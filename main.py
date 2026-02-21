@@ -1,17 +1,42 @@
 
-import sys
-sys.path.insert(0, "cactus/python/src")
-functiongemma_path = "cactus/weights/functiongemma-270m-it"
+import sys, os
+# Get the absolute path to the parent directory (Hackathongoogle)
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+cactus_src = os.path.join(base_path, "cactus/python/src")
+functiongemma_path = os.path.join(base_path, "cactus/weights/functiongemma-270m-it")
+
+sys.path.insert(0, cactus_src)
 
 import json, os, time
-from cactus import cactus_init, cactus_complete, cactus_destroy
+from dotenv import load_dotenv
+load_dotenv()
+
+# Gracefully handle Cactus import on unsupported architectures (e.g. Intel Mac)
+try:
+    from cactus import cactus_init, cactus_complete, cactus_destroy
+    CACTUS_AVAILABLE = True
+except (OSError, ImportError, Exception):
+    CACTUS_AVAILABLE = False
+    def cactus_init(*args, **kwargs): raise RuntimeError("Cactus not available on this architecture")
+    def cactus_complete(*args, **kwargs): pass
+    def cactus_destroy(*args, **kwargs): pass
+
 from google import genai
 from google.genai import types
 
 
 def generate_cactus(messages, tools):
     """Run function calling on-device via FunctionGemma + Cactus."""
-    model = cactus_init(functiongemma_path)
+    try:
+        model = cactus_init(functiongemma_path)
+    except (OSError, ImportError, Exception) as e:
+        # Graceful fallback for unsupported architectures (e.g. Intel Mac)
+        return {
+            "function_calls": [],
+            "total_time_ms": 0,
+            "confidence": 0,
+            "error": str(e)
+        }
 
     cactus_tools = [{
         "type": "function",
@@ -70,12 +95,36 @@ def generate_cloud(messages, tools):
     contents = [m["content"] for m in messages if m["role"] == "user"]
 
     start_time = time.time()
+    
+    models_to_try = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-flash-latest"]
+    gemini_response = None
+    
+    for attempt in range(5): # Up to 5 retries
+        for model_name in models_to_try:
+            try:
+                gemini_response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(tools=gemini_tools),
+                )
+                if gemini_response:
+                    break
+            except Exception as e:
+                err_str = str(e)
+                if any(x in err_str for x in ["429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE"]):
+                    print(f"  Model {model_name} busy or quota hit. Trying next...")
+                    continue
+                raise e
+        
+        if gemini_response:
+            break
+            
+        wait_time = (attempt + 1) * 0.1
+        print(f"  All models hit limits. Waiting {wait_time}s before retry {attempt+1}/5...")
+        time.sleep(wait_time)
 
-    gemini_response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=contents,
-        config=types.GenerateContentConfig(tools=gemini_tools),
-    )
+    if not gemini_response:
+        raise RuntimeError("Failed to get response from any Gemini model after multiple retries.")
 
     total_time_ms = (time.time() - start_time) * 1000
 

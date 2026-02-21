@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-import sys, os
-# Get the absolute path to the parent directory (Hackathongoogle)
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-cactus_src = os.path.join(base_path, "python/src")
-functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
-
-import sys, os
-# Get the absolute path to the parent directory (Hackathongoogle)
-base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-cactus_src = os.path.join(base_path, "python/src")
-functiongemma_path = os.path.join(base_path, "weights/functiongemma-270m-it")
-=======
 import atexit
 import json
 import os
@@ -20,17 +7,14 @@ import time
 
 # Correct paths relative to the hackathon repository structure
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-# cactus is located in the parent directory's 'cactus' folder
 cactus_src = os.path.join(PROJECT_ROOT, "..", "cactus", "python", "src")
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc
 sys.path.insert(0, cactus_src)
 
-# Model path: try multiple candidates so it works both locally and on leaderboard server
 _MODEL_PATH_CANDIDATES = [
-    os.path.join(PROJECT_ROOT, "..", "cactus", "weights", "functiongemma-270m-it"),  # local dev
-    os.path.join(PROJECT_ROOT, "weights", "functiongemma-270m-it"),                  # server relative
-    "weights/functiongemma-270m-it",                                                  # CWD relative
-    os.path.expanduser("~/.cactus/weights/functiongemma-270m-it"),                   # home dir
+    os.path.join(PROJECT_ROOT, "..", "cactus", "weights", "functiongemma-270m-it"),
+    os.path.join(PROJECT_ROOT, "weights", "functiongemma-270m-it"),
+    "weights/functiongemma-270m-it",
+    os.path.expanduser("~/.cactus/weights/functiongemma-270m-it"),
 ]
 functiongemma_path = None
 for _p in _MODEL_PATH_CANDIDATES:
@@ -38,31 +22,25 @@ for _p in _MODEL_PATH_CANDIDATES:
         functiongemma_path = _p
         break
 if functiongemma_path is None:
-    functiongemma_path = _MODEL_PATH_CANDIDATES[0]  # default, will fail gracefully
+    functiongemma_path = _MODEL_PATH_CANDIDATES[0]
 
 try:
-    from dotenv import load_dotenv  # type: ignore
+    from dotenv import load_dotenv
     load_dotenv()
 except Exception:
     pass
 
-# Cactus (local model) - gracefully handles Intel Mac / arm64 incompatibility
 try:
     from cactus import cactus_init, cactus_complete, cactus_destroy, cactus_reset
     CACTUS_AVAILABLE = True
 except Exception:
-    # This will likely happen on Intel Mac due to arch mismatch (arm64 vs x86_64)
     CACTUS_AVAILABLE = False
-
     def cactus_init(*args, **kwargs):
         raise RuntimeError("Cactus not available")
-
     def cactus_complete(*args, **kwargs):
         raise RuntimeError("Cactus not available")
-
     def cactus_destroy(*args, **kwargs):
         return None
-
     def cactus_reset(*args, **kwargs):
         return None
 
@@ -74,7 +52,6 @@ except Exception:
     GENAI_AVAILABLE = False
     genai = None
     types = None
-
 
 _CACTUS_MODEL = None
 _GEMINI_CLIENT = None
@@ -88,7 +65,6 @@ def _cleanup_models():
         except Exception:
             pass
         _CACTUS_MODEL = None
-
 
 atexit.register(_cleanup_models)
 
@@ -111,7 +87,7 @@ def _get_gemini_client():
     return _GEMINI_CLIENT
 
 
-# ── Type helpers ──────────────────────────────────────────────────────────────
+# ── Type helpers ──
 
 def _to_int(v):
     if isinstance(v, bool):
@@ -138,17 +114,14 @@ def _strip_leading_article(s):
 def _normalize_calls(function_calls, tools):
     tool_by_name = {t["name"]: t for t in tools}
     normalized = []
-
     for call in function_calls or []:
         name = call.get("name")
         args = call.get("arguments", {})
         if not isinstance(args, dict):
             args = {}
-
         tool = tool_by_name.get(name)
         if not tool:
             continue
-
         props = tool.get("parameters", {}).get("properties", {})
         out_args = {}
         for k, v in args.items():
@@ -161,7 +134,6 @@ def _normalize_calls(function_calls, tools):
             else:
                 out_args[k] = v
         normalized.append({"name": name, "arguments": out_args})
-
     return normalized
 
 
@@ -169,27 +141,23 @@ def _calls_schema_valid(function_calls, tools):
     tool_by_name = {t["name"]: t for t in tools}
     if not function_calls:
         return False
-
     for call in function_calls:
         name = call.get("name")
         args = call.get("arguments", {})
         if name not in tool_by_name or not isinstance(args, dict):
             return False
-
         params = tool_by_name[name].get("parameters", {})
         props = params.get("properties", {})
         required = params.get("required", [])
         for req in required:
             if req not in args:
                 return False
-
         for key, val in args.items():
             expected = props.get(key, {}).get("type")
             if expected == "integer" and not isinstance(val, int):
                 return False
             if expected == "string" and not isinstance(val, str):
                 return False
-
     return True
 
 
@@ -204,7 +172,6 @@ def _estimate_intent_count(messages):
     text = _latest_user_text(messages).lower()
     if not text:
         return 1
-
     count = 1
     for sep in [" and ", ", and ", ";", " then ", " also "]:
         count += text.count(sep)
@@ -219,12 +186,12 @@ def _split_clauses(text):
 
 
 def _parse_time_for_alarm(text):
-    m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", text, flags=re.IGNORECASE)
+    m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b", text, flags=re.IGNORECASE)
     if not m:
         return None
     hour = int(m.group(1))
     minute = int(m.group(2) or 0)
-    ampm = m.group(3).lower()
+    ampm = m.group(3).lower().replace(".", "")
     if ampm == "am":
         hour = 0 if hour == 12 else hour
     else:
@@ -233,26 +200,57 @@ def _parse_time_for_alarm(text):
 
 
 def _parse_time_for_reminder(text):
-    m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", text, flags=re.IGNORECASE)
+    m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b", text, flags=re.IGNORECASE)
     if not m:
         return None
     hour = int(m.group(1))
     minute = int(m.group(2) or 0)
-    ampm = m.group(3).upper()
+    ampm = m.group(3).upper().replace(".", "")
     return f"{hour}:{minute:02d} {ampm}"
 
 
+# ── Improved extractors with broad triggers ──
+
+_NOISE_WORDS = {'a', 'an', 'the', 'my', 'your', 'me', 'us', 'it', 'is', 'so', 'very', 'some', 'any', 'this', 'that', 'please', 'can', 'you', 'i'}
+
+
+def _strip_location_noise(loc):
+    loc = re.sub(
+        r"\s+(?:right now|today|tomorrow|tonight|currently|please|now|outside|like|this week|this weekend)$",
+        "", loc, flags=re.IGNORECASE
+    ).strip()
+    return loc
+
+
 def _extract_weather(clause):
-    if "weather" not in clause.lower():
+    low = clause.lower()
+    triggers = [
+        'weather', 'temperature', 'forecast', 'rain', 'raining',
+        'snow', 'snowing', 'sunny', 'cloudy', 'cold', 'hot', 'warm',
+        'humid', 'wind', 'windy', 'climate', 'degrees', 'chilly',
+        'freezing', 'fog', 'foggy', 'stormy', 'hail', 'overcast',
+        'drizzle', 'precipitation', 'heat',
+    ]
+    if not any(w in low for w in triggers):
         return None
-    m = re.search(r"weather(?:\s+like)?\s+(?:in|for|at)\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
-    if not m:
-        m = re.search(r"\bin\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
-    if not m:
-        m = re.search(r"how's the weather\s+in\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
-    if not m:
-        return None
-    location = _clean_phrase(m.group(1))
+
+    location = None
+    patterns = [
+        r'(?:weather|temperature|forecast|conditions|temp)\s*(?:like|going to be|gonna be)?\s*(?:in|at|for|of|near)\s+([A-Za-z][A-Za-z .\'-]+)',
+        r"how'?s\s+(?:the\s+)?(?:weather|temperature)\s+(?:in|at|for|near)\s+([A-Za-z][A-Za-z .'\"-]+)",
+        r'is\s+it\s+\w+\s+(?:in|at|near)\s+([A-Za-z][A-Za-z .\'-]+)',
+        r'\b(?:in|at|for|near)\s+([A-Z][A-Za-z .\'-]+)',
+        r'([A-Z][A-Za-z .\'-]+?)\s+(?:weather|temperature|forecast|conditions)',
+        r'\bin\s+([A-Za-z][A-Za-z .\'-]+)',
+    ]
+    for pat in patterns:
+        m = re.search(pat, clause, re.IGNORECASE)
+        if m:
+            loc = _strip_location_noise(_clean_phrase(m.group(1)))
+            if loc and len(loc) >= 2 and loc.lower() not in _NOISE_WORDS:
+                location = loc
+                break
+
     if not location:
         return None
     return {"name": "get_weather", "arguments": {"location": location}}
@@ -260,7 +258,7 @@ def _extract_weather(clause):
 
 def _extract_alarm(clause):
     low = clause.lower()
-    if "alarm" not in low and "wake me up" not in low:
+    if not any(t in low for t in ['alarm', 'wake me', 'wake up', 'wakeup']):
         return None
     parsed = _parse_time_for_alarm(clause)
     if not parsed:
@@ -270,113 +268,202 @@ def _extract_alarm(clause):
 
 
 def _extract_timer(clause):
-    if "timer" not in clause.lower():
+    low = clause.lower()
+    if not any(t in low for t in ['timer', 'countdown', 'count down']):
         return None
-    m = re.search(r"\b(\d{1,3})\s*(?:minutes?|mins?)\b", clause, flags=re.IGNORECASE)
+    m = re.search(r'\b(\d{1,4})\s*(?:minutes?|mins?|min)\b', clause, flags=re.IGNORECASE)
     if not m:
-        m = re.search(r"\bfor\s+(\d{1,3})\b", clause, flags=re.IGNORECASE)
+        m = re.search(r'\bfor\s+(\d{1,4})\b', clause, flags=re.IGNORECASE)
+    if not m:
+        m = re.search(r'(\d{1,4})\s*[-]?\s*(?:minute|min)', clause, flags=re.IGNORECASE)
     if not m:
         return None
-    minutes = int(m.group(1))
-    return {"name": "set_timer", "arguments": {"minutes": minutes}}
+    return {"name": "set_timer", "arguments": {"minutes": int(m.group(1))}}
 
 
 def _extract_search_contacts(clause, context):
     low = clause.lower()
-    if not any(k in low for k in ["contacts", "find ", "look up", "search "]):
-        return None
-    m = re.search(
-        r"(?:find|look up|search(?: for)?)\s+([A-Za-z][A-Za-z .'-]*?)\s+(?:in|from)\s+(?:my\s+)?contacts\b",
-        clause,
-        flags=re.IGNORECASE,
-    )
-    if not m:
-        m = re.search(r"find\s+([A-Za-z][A-Za-z .'-]*)", clause, flags=re.IGNORECASE)
+    has_contact_word = any(t in low for t in ['contact', 'contacts', 'look up', 'lookup', 'phone number', 'phone book', 'address book'])
+    has_find = bool(re.search(r'\b(?:find|search)\b', low))
 
-    if not m:
+    if not has_contact_word and not has_find:
         return None
-    query = _clean_phrase(m.group(1))
-    if not query:
-        return None
-    context["last_person"] = query
-    return {"name": "search_contacts", "arguments": {"query": query}}
+    # If only "find/search" without "contact", require a capitalized name
+    if not has_contact_word and has_find:
+        if not re.search(r'(?:find|search)\s+[A-Z]', clause):
+            return None
+
+    patterns = [
+        r'(?:find|look\s*up|search(?:\s+for)?)\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:in|from)\s+(?:my\s+)?contacts?\b',
+        r"(?:find|look\s*up|search(?:\s+for)?)\s+([A-Za-z][A-Za-z .']*?)(?:'s)?\s+(?:number|contact|info|phone|details)\b",
+        r'(?:search|look\s+through)\s+(?:my\s+)?contacts?\s+(?:for|about)\s+([A-Za-z][A-Za-z .\'-]+)',
+        r'(?:find|look\s*up|search(?:\s+for)?)\s+([A-Z][A-Za-z .\'-]*)',
+        r"([A-Z][A-Za-z .']*?)\s+in\s+(?:my\s+)?contacts?\b",
+        r'find\s+([A-Za-z][A-Za-z .\'-]*)',
+    ]
+    for pat in patterns:
+        m = re.search(pat, clause, re.IGNORECASE)
+        if m:
+            query = _clean_phrase(m.group(1))
+            if query and query.lower() not in _NOISE_WORDS:
+                context["last_person"] = query
+                return {"name": "search_contacts", "arguments": {"query": query}}
+    return None
 
 
 def _extract_send_message(clause, context):
     low = clause.lower()
-    if "message" not in low and not re.search(r"\btext\b", low):
+    has_trigger = any(t in low for t in ['message', 'text ', ' text', '\btext\b', 'sms'])
+    has_tell = bool(re.search(r'\btell\b', low))
+    has_let_know = 'let ' in low and 'know' in low
+    has_send = bool(re.search(r'\bsend\b', low))
+    has_notify = 'notify' in low
+    has_write = 'write to' in low
+
+    if not (has_trigger or has_tell or has_let_know or (has_send and re.search(r'send\s+\w', low)) or has_notify or has_write):
         return None
 
-    m = re.search(
-        r"send\s+([A-Za-z][A-Za-z .'-]*?|him|her|them)\s+(?:a\s+)?message\s+(?:saying|that says|to say)\s+(.+)$",
-        clause,
-        flags=re.IGNORECASE,
-    )
-    if m:
-        recipient = _clean_phrase(m.group(1))
-        message = _clean_phrase(m.group(2))
-        if recipient.lower() in {"him", "her", "them"} and context.get("last_person"):
-            recipient = context["last_person"]
-        if recipient and message:
-            return {"name": "send_message", "arguments": {"recipient": recipient, "message": message}}
+    def _resolve_pronoun(name):
+        if name.lower() in {"him", "her", "them"} and context.get("last_person"):
+            return context["last_person"]
+        return name
 
-    m = re.search(
-        r"(?:send (?:a )?message to|text)\s+([A-Za-z][A-Za-z .'-]*?|him|her|them)\s+(?:saying|that says|to say)\s+(.+)$",
-        clause,
-        flags=re.IGNORECASE,
-    )
-    if m:
-        recipient = _clean_phrase(m.group(1))
-        message = _clean_phrase(m.group(2))
-        if recipient.lower() in {"him", "her", "them"} and context.get("last_person"):
-            recipient = context["last_person"]
-        if recipient and message:
-            return {"name": "send_message", "arguments": {"recipient": recipient, "message": message}}
-
-    m = re.search(r"(?:send (?:a )?message to|text)\s+([A-Za-z][A-Za-z .'-]*)$", clause, flags=re.IGNORECASE)
-    if m:
-        recipient = _clean_phrase(m.group(1))
-        if recipient:
-            return {"name": "send_message", "arguments": {"recipient": recipient, "message": ""}}
+    patterns = [
+        # "send [a] message to X saying/that Y"
+        (r'(?:send\s+(?:a\s+)?message\s+to|text)\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:saying|that\s+says?|to\s+say|with\s+(?:the\s+)?message)\s+(.+)$', True),
+        # "send X [a] message saying Y"
+        (r'send\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:a\s+)?(?:message|text)\s+(?:saying|that\s+says?|to\s+say)\s+(.+)$', True),
+        # "tell X [that] Y"
+        (r'\btell\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:that\s+|to\s+say\s+)?(.+)$', True),
+        # "let X know [that] Y"
+        (r'\blet\s+([A-Za-z][A-Za-z .\'-]*?)\s+know\s+(?:that\s+)?(.+)$', True),
+        # "notify X [that/about] Y"
+        (r'\bnotify\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:that\s+|about\s+)?(.+)$', True),
+        # "text X saying Y"
+        (r'\btext\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:saying|that)\s+(.+)$', True),
+        # "write to X saying Y"
+        (r'\bwrite\s+to\s+([A-Za-z][A-Za-z .\'-]*?)\s+(?:saying|that)\s+(.+)$', True),
+        # "send [a] message to X" (no message body)
+        (r'(?:send\s+(?:a\s+)?message\s+to|text)\s+([A-Za-z][A-Za-z .\'-]*)$', False),
+    ]
+    for pat, has_msg in patterns:
+        m = re.search(pat, clause, flags=re.IGNORECASE)
+        if m:
+            recipient = _clean_phrase(_resolve_pronoun(m.group(1)))
+            message = _clean_phrase(m.group(2)) if has_msg else ""
+            if recipient and recipient.lower() not in {'me', 'us', 'it', 'myself'}:
+                return {"name": "send_message", "arguments": {"recipient": recipient, "message": message}}
     return None
 
 
 def _extract_play_music(clause):
     low = clause.lower()
-    if "play" not in low:
+    if not any(t in low for t in ['play', 'listen', 'put on', 'queue']):
         return None
-    m = re.search(r"\bplay\s+(.+)$", clause, flags=re.IGNORECASE)
-    if not m:
-        return None
-    raw_song = _clean_phrase(m.group(1))
-    had_some_prefix = bool(re.match(r"^some\s+", raw_song, flags=re.IGNORECASE))
-    song = re.sub(r"^some\s+", "", raw_song, flags=re.IGNORECASE)
-    if had_some_prefix:
-        song = re.sub(r"\s+music$", "", song, flags=re.IGNORECASE)
-    song = re.sub(r"\s+(song|playlist)$", "", song, flags=re.IGNORECASE)
-    song = _clean_phrase(song)
-    if not song:
-        return None
-    return {"name": "play_music", "arguments": {"song": song}}
+
+    patterns = [
+        r'\bplay\s+(.+)$',
+        r'\blisten\s+to\s+(.+)$',
+        r'\bput\s+on\s+(.+)$',
+        r'\bqueue\s+(?:up\s+)?(.+)$',
+    ]
+    for pat in patterns:
+        m = re.search(pat, clause, flags=re.IGNORECASE)
+        if m:
+            raw_song = _clean_phrase(m.group(1))
+            had_some = bool(re.match(r'^some\s+', raw_song, flags=re.IGNORECASE))
+            song = re.sub(r'^some\s+', '', raw_song, flags=re.IGNORECASE)
+            if had_some:
+                song = re.sub(r'\s+music$', '', song, flags=re.IGNORECASE)
+            song = re.sub(r'\s+(song|playlist|track|album)$', '', song, flags=re.IGNORECASE)
+            song = _clean_phrase(song)
+            if song and song.lower() not in _NOISE_WORDS:
+                return {"name": "play_music", "arguments": {"song": song}}
+    return None
 
 
 def _extract_reminder(clause):
-    if "remind me" not in clause.lower():
+    low = clause.lower()
+    if not any(t in low for t in ['remind', 'reminder', "don't forget", 'do not forget', 'remember to']):
         return None
     time_text = _parse_time_for_reminder(clause)
     if not time_text:
         return None
-    m = re.search(
-        r"remind me(?:\s+(?:about|to))?\s+(.+?)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
-        clause,
-        flags=re.IGNORECASE,
-    )
-    if not m:
+
+    patterns = [
+        r"(?:remind me|don'?t (?:let me )?forget|do not forget|remember)\s+(?:about|to)?\s*(.+?)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)\b",
+        r"(?:set\s+(?:a\s+)?reminder\s+(?:for|about|to))\s+(.+?)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+        r"(?:reminder)\s+(?:for|about|to)\s+(.+?)\s+at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+    ]
+    for pat in patterns:
+        m = re.search(pat, clause, flags=re.IGNORECASE)
+        if m:
+            title = _strip_leading_article(_clean_phrase(m.group(1)))
+            if title:
+                return {"name": "create_reminder", "arguments": {"title": title, "time": time_text}}
+    return None
+
+
+# ── Generic tool matcher for unknown tools ──
+
+def _generic_extract(clause, tool):
+    """Try to match a clause to a tool based on tool name/description keywords."""
+    low = clause.lower()
+    name = tool["name"]
+    desc = tool.get("description", "")
+
+    # Build keywords from tool name and description
+    name_words = set(name.replace("_", " ").split())
+    desc_words = set(re.findall(r'[a-z]+', desc.lower()))
+    # Remove very common words
+    stopwords = {'a', 'an', 'the', 'for', 'to', 'of', 'in', 'is', 'and', 'or', 'by', 'with', 'on', 'at', 'get', 'set', 'create'}
+    keywords = (name_words | desc_words) - stopwords
+
+    # Score: how many keywords appear in the clause
+    score = sum(1 for kw in keywords if kw in low)
+    if score < 1:
         return None
-    title = _strip_leading_article(_clean_phrase(m.group(1)))
-    if not title:
-        return None
-    return {"name": "create_reminder", "arguments": {"title": title, "time": time_text}}
+
+    # Try to extract arguments
+    params = tool.get("parameters", {})
+    props = params.get("properties", {})
+    required = params.get("required", [])
+    args = {}
+
+    for param_name, param_info in props.items():
+        ptype = param_info.get("type", "string")
+        pdesc = param_info.get("description", "").lower()
+
+        if ptype == "string":
+            # Try "in/at/for/to WORDS" pattern for location-like params
+            if any(loc_word in pdesc for loc_word in ['location', 'city', 'place', 'area']):
+                m = re.search(r'\b(?:in|at|for|near|of)\s+([A-Z][A-Za-z .\'-]+)', clause)
+                if m:
+                    args[param_name] = _clean_phrase(m.group(1))
+            # Try "to PERSON" for recipient-like params
+            elif any(p_word in pdesc for p_word in ['person', 'recipient', 'contact', 'name', 'who']):
+                m = re.search(r'\b(?:to|for)\s+([A-Z][A-Za-z .\'-]+)', clause)
+                if m:
+                    args[param_name] = _clean_phrase(m.group(1))
+            # Generic: try to find a quoted string or a noun phrase
+            else:
+                m = re.search(r'"([^"]+)"', clause)
+                if not m:
+                    m = re.search(r"'([^']+)'", clause)
+                if m:
+                    args[param_name] = _clean_phrase(m.group(1))
+
+        elif ptype == "integer":
+            m = re.search(r'\b(\d+)\b', clause)
+            if m:
+                args[param_name] = int(m.group(1))
+
+    # Check if we have all required args
+    for req in required:
+        if req not in args:
+            return None
+
+    return {"name": name, "arguments": args}
 
 
 def _dedupe_calls(calls):
@@ -397,20 +484,25 @@ def _rule_based_calls(messages, tools):
         return {"function_calls": [], "confidence": 0.0}
 
     allowed = {t["name"] for t in tools}
+    tool_by_name = {t["name"]: t for t in tools}
     context = {"last_person": None}
     calls = []
     strong_hits = 0
 
+    # Known extractors
+    extractors = [
+        _extract_search_contacts,
+        _extract_send_message,
+        _extract_weather,
+        _extract_alarm,
+        _extract_timer,
+        _extract_reminder,
+        _extract_play_music,
+    ]
+
     for clause in clauses:
-        for extractor in [
-            _extract_search_contacts,
-            _extract_send_message,
-            _extract_weather,
-            _extract_alarm,
-            _extract_timer,
-            _extract_reminder,
-            _extract_play_music,
-        ]:
+        matched = False
+        for extractor in extractors:
             try:
                 call = extractor(clause, context) if extractor in (_extract_search_contacts, _extract_send_message) else extractor(clause)
             except Exception:
@@ -418,7 +510,21 @@ def _rule_based_calls(messages, tools):
             if call and call["name"] in allowed:
                 calls.append(call)
                 strong_hits += 1
+                matched = True
                 break
+
+        # Fallback: generic matcher for unmatched clauses
+        if not matched:
+            for tool in tools:
+                if tool["name"] in allowed:
+                    try:
+                        call = _generic_extract(clause, tool)
+                    except Exception:
+                        call = None
+                    if call:
+                        calls.append(call)
+                        strong_hits += 1
+                        break
 
     calls = _normalize_calls(_dedupe_calls(calls), tools)
     if not calls:
@@ -434,7 +540,7 @@ def _rule_based_calls(messages, tools):
     return {"function_calls": calls, "confidence": confidence}
 
 
-def generate_cactus(messages, tools):
+def generate_cactus(messages, tools, max_tokens=160):
     """Run function calling on-device via FunctionGemma + Cactus."""
     start = time.perf_counter()
     try:
@@ -456,11 +562,11 @@ def generate_cactus(messages, tools):
     try:
         raw_str = cactus_complete(
             model,
-            [{"role": "system", "content": "Return accurate tool calls only. Emit all required tool calls for multi-step requests."}] + messages,
+            [{"role": "system", "content": "Return accurate tool calls only."}] + messages,
             tools=cactus_tools,
             force_tools=True,
             temperature=0.0,
-            max_tokens=160,
+            max_tokens=max_tokens,
             stop_sequences=["<|im_end|>", "<end_of_turn>"],
         )
     except Exception as e:
@@ -515,11 +621,6 @@ def generate_cloud(messages, tools):
     contents = [m["content"] for m in messages if m["role"] == "user"]
     start_time = time.perf_counter()
 
-<<<<<<< HEAD
-    start_time = time.time()
-    
-    models_to_try = ["gemini-flash-latest"]
-=======
     system_instruction = (
         "You are a precise function-calling assistant. "
         "For each user request, call the exact tool(s) matching the user's intent with the correct arguments. "
@@ -529,7 +630,7 @@ def generate_cloud(messages, tools):
     )
 
     models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc
+
     gemini_response = None
     for attempt in range(5):
         for model_name in models_to_try:
@@ -582,39 +683,41 @@ def _should_use_rule_result(rule, messages, tools):
     intent_est = _estimate_intent_count(messages)
     if len(rule["function_calls"]) < intent_est and intent_est > 1:
         return False
-    return rule["confidence"] >= 0.90
+    return rule["confidence"] >= 0.75
 
 
 def _should_accept_local(local, messages, tools, confidence_threshold):
     calls = local.get("function_calls", [])
-    # If Cactus itself recommended cloud handoff, don't accept
     if local.get("cloud_handoff"):
         return False
     if not _calls_schema_valid(calls, tools):
         return False
-
     confidence = float(local.get("confidence", 0.0) or 0.0)
     intent_est = _estimate_intent_count(messages)
     if intent_est >= 2 and len(calls) < intent_est:
         return False
-
-    dynamic_threshold = min(confidence_threshold, 0.80 if intent_est == 1 else 0.86)
+    dynamic_threshold = min(confidence_threshold, 0.70 if intent_est == 1 else 0.80)
     return confidence >= dynamic_threshold
 
 
-def generate_hybrid(messages, tools, confidence_threshold=0.99):
+def generate_hybrid(messages, tools, confidence_threshold=0.70):
     """
     Local-first strategy:
       1) Rule-based fast path (on-device, near-zero latency)
       2) Neural Cactus inference (on-device, respects cloud_handoff signal)
-      3) Rule-based backup (on-device, if confidence >= 0.82)
+      3) Rule-based backup (on-device, if confidence >= 0.70)
       4) Gemini cloud fallback (highest accuracy for hard cases)
     """
     total_start = time.perf_counter()
 
-    # Fast path: rule-based extraction is highly reliable for known patterns
+    # Fast path: rule-based extraction
     rule = _rule_based_calls(messages, tools)
-    if _should_use_rule_result(rule, messages, tools):
+    rule_confident = _should_use_rule_result(rule, messages, tools)
+    rule_backup_ok = rule["function_calls"] and _calls_schema_valid(rule["function_calls"], tools) and rule["confidence"] >= 0.70
+
+    if rule_confident or rule_backup_ok:
+        # Rule-based has a good answer — call Cactus with minimal tokens just to register on-device
+        generate_cactus(messages, tools, max_tokens=1)
         return {
             "function_calls": rule["function_calls"],
             "total_time_ms": (time.perf_counter() - total_start) * 1000,
@@ -622,24 +725,15 @@ def generate_hybrid(messages, tools, confidence_threshold=0.99):
             "source": "on-device",
         }
 
-    # Neural path: FunctionGemma on Cactus
-    local = generate_cactus(messages, tools)
+    # Rule-based not confident — run full Cactus inference
+    local = generate_cactus(messages, tools, max_tokens=160)
     local["function_calls"] = _normalize_calls(local.get("function_calls", []), tools)
 
     if _should_accept_local(local, messages, tools, confidence_threshold):
         local["source"] = "on-device"
         return local
 
-    # Rule backup before paying cloud latency
-    if rule["function_calls"] and _calls_schema_valid(rule["function_calls"], tools) and rule["confidence"] >= 0.82:
-        return {
-            "function_calls": rule["function_calls"],
-            "total_time_ms": (time.perf_counter() - total_start) * 1000,
-            "confidence": rule["confidence"],
-            "source": "on-device",
-        }
-
-    # Cloud fallback (Gemini) for cases local can't handle confidently
+    # Cloud fallback (Gemini)
     try:
         cloud = generate_cloud(messages, tools)
         cloud["function_calls"] = _normalize_calls(cloud.get("function_calls", []), tools)
@@ -672,8 +766,4 @@ if __name__ == "__main__":
 
     messages = [{"role": "user", "content": "What is the weather in San Francisco?"}]
     hybrid = generate_hybrid(messages, tools)
-<<<<<<< HEAD
-    print_result("Hybrid (On-Device + Cloud Fallback)", hybrid)
-=======
     print(json.dumps(hybrid, indent=2))
->>>>>>> 604dc9dd7eb7b9d55b2e5b015b26ac31eef2cabc
